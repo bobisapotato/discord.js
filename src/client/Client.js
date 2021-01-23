@@ -5,18 +5,19 @@ const ActionsManager = require('./actions/ActionsManager');
 const ClientVoiceManager = require('./voice/ClientVoiceManager');
 const WebSocketManager = require('./websocket/WebSocketManager');
 const { Error, TypeError, RangeError } = require('../errors');
+const BaseGuildEmojiManager = require('../managers/BaseGuildEmojiManager');
 const ChannelManager = require('../managers/ChannelManager');
-const GuildEmojiManager = require('../managers/GuildEmojiManager');
 const GuildManager = require('../managers/GuildManager');
 const UserManager = require('../managers/UserManager');
 const ShardClientUtil = require('../sharding/ShardClientUtil');
 const ClientApplication = require('../structures/ClientApplication');
 const GuildPreview = require('../structures/GuildPreview');
+const GuildTemplate = require('../structures/GuildTemplate');
 const Invite = require('../structures/Invite');
 const VoiceRegion = require('../structures/VoiceRegion');
 const Webhook = require('../structures/Webhook');
 const Collection = require('../util/Collection');
-const { Events, browser, DefaultOptions } = require('../util/Constants');
+const { Events, DefaultOptions } = require('../util/Constants');
 const DataResolver = require('../util/DataResolver');
 const Intents = require('../util/Intents');
 const Permissions = require('../util/Permissions');
@@ -88,19 +89,18 @@ class Client extends BaseClient {
     this.actions = new ActionsManager(this);
 
     /**
-     * The voice manager of the client (`null` in browsers)
-     * @type {?ClientVoiceManager}
+     * The voice manager of the client
+     * @type {ClientVoiceManager}
      */
-    this.voice = !browser ? new ClientVoiceManager(this) : null;
+    this.voice = new ClientVoiceManager(this);
 
     /**
      * Shard helpers for the client (only if the process was spawned from a {@link ShardingManager})
      * @type {?ShardClientUtil}
      */
-    this.shard =
-      !browser && process.env.SHARDING_MANAGER
-        ? ShardClientUtil.singleton(this, process.env.SHARDING_MANAGER_MODE)
-        : null;
+    this.shard = process.env.SHARDING_MANAGER
+      ? ShardClientUtil.singleton(this, process.env.SHARDING_MANAGER_MODE)
+      : null;
 
     /**
      * All of the {@link User} objects that have been cached at any point, mapped by their IDs
@@ -130,12 +130,13 @@ class Client extends BaseClient {
      * @private
      * @type {ClientPresence}
      */
-    this.presence = new ClientPresence(this);
+    this.presence = new ClientPresence(this, options.presence);
 
     Object.defineProperty(this, 'token', { writable: true });
-    if (!browser && !this.token && 'DISCORD_TOKEN' in process.env) {
+    if (!this.token && 'DISCORD_TOKEN' in process.env) {
       /**
-       * Authorization token for the logged in bot
+       * Authorization token for the logged in bot.
+       * If present, this defaults to `process.env.DISCORD_TOKEN` when instantiating the client
        * <warn>This should be kept private at all times.</warn>
        * @type {?string}
        */
@@ -164,11 +165,11 @@ class Client extends BaseClient {
 
   /**
    * All custom emojis that the client has access to, mapped by their IDs
-   * @type {GuildEmojiManager}
+   * @type {BaseGuildEmojiManager}
    * @readonly
    */
   get emojis() {
-    const emojis = new GuildEmojiManager({ client: this });
+    const emojis = new BaseGuildEmojiManager(this);
     for (const guild of this.guilds.cache.values()) {
       if (guild.available) for (const emoji of guild.emojis.cache.values()) emojis.cache.set(emoji.id, emoji);
     }
@@ -195,7 +196,7 @@ class Client extends BaseClient {
 
   /**
    * Logs the client in, establishing a websocket connection to Discord.
-   * @param {string} token Token of the account to log in with
+   * @param {string} [token=this.token] Token of the account to log in with
    * @returns {Promise<string>} Token of the account used
    * @example
    * client.login('my token');
@@ -251,6 +252,23 @@ class Client extends BaseClient {
       .invites(code)
       .get({ query: { with_counts: true } })
       .then(data => new Invite(this, data));
+  }
+
+  /**
+   * Obtains a template from Discord.
+   * @param {GuildTemplateResolvable} template Template code or URL
+   * @returns {Promise<GuildTemplate>}
+   * @example
+   * client.fetchGuildTemplate('https://discord.new/FKvmczH2HyUf')
+   *   .then(template => console.log(`Obtained template with code: ${template.code}`))
+   *   .catch(console.error);
+   */
+  fetchGuildTemplate(template) {
+    const code = DataResolver.resolveGuildTemplateCode(template);
+    return this.api.guilds
+      .templates(code)
+      .get()
+      .then(data => new GuildTemplate(this, data));
   }
 
   /**
@@ -340,7 +358,7 @@ class Client extends BaseClient {
   }
 
   /**
-   * Obtains a guild preview from Discord, only available for public guilds.
+   * Obtains a guild preview from Discord, available for all guilds the bot is in and all Discoverable guilds.
    * @param {GuildResolvable} guild The guild to fetch the preview for
    * @returns {Promise<GuildPreview>}
    */
@@ -354,29 +372,54 @@ class Client extends BaseClient {
   }
 
   /**
+   * Options for {@link Client#generateInvite}.
+   * @typedef {Object} InviteGenerationOptions
+   * @property {PermissionResolvable} [permissions] Permissions to request
+   * @property {GuildResolvable} [guild] Guild to preselect
+   * @property {boolean} [disableGuildSelect] Whether to disable the guild selection
+   */
+
+  /**
    * Generates a link that can be used to invite the bot to a guild.
-   * @param {PermissionResolvable} [permissions] Permissions to request
+   * @param {InviteGenerationOptions} [options={}] Options for the invite
    * @returns {Promise<string>}
    * @example
-   * client.generateInvite(['SEND_MESSAGES', 'MANAGE_GUILD', 'MENTION_EVERYONE'])
+   * client.generateInvite({
+   *   permissions: ['SEND_MESSAGES', 'MANAGE_GUILD', 'MENTION_EVERYONE'],
+   * })
    *   .then(link => console.log(`Generated bot invite link: ${link}`))
    *   .catch(console.error);
    */
-  async generateInvite(permissions) {
-    permissions = Permissions.resolve(permissions);
+  async generateInvite(options = {}) {
+    if (typeof options !== 'object') throw new TypeError('INVALID_TYPE', 'options', 'object', true);
+
     const application = await this.fetchApplication();
     const query = new URLSearchParams({
       client_id: application.id,
-      permissions: permissions,
       scope: 'bot',
     });
+
+    if (options.permissions) {
+      const permissions = Permissions.resolve(options.permissions);
+      if (permissions) query.set('permissions', permissions);
+    }
+
+    if (options.disableGuildSelect) {
+      query.set('disable_guild_select', true);
+    }
+
+    if (options.guild) {
+      const guildID = this.guilds.resolveID(options.guild);
+      if (!guildID) throw new TypeError('INVALID_TYPE', 'options.guild', 'GuildResolvable');
+      query.set('guild_id', guildID);
+    }
+
     return `${this.options.http.api}${this.api.oauth2.authorize}?${query}`;
   }
 
   toJSON() {
     return super.toJSON({
       readyAt: false,
-      presences: false,
     });
   }
 
@@ -418,9 +461,6 @@ class Client extends BaseClient {
     }
     if (typeof options.fetchAllMembers !== 'boolean') {
       throw new TypeError('CLIENT_INVALID_OPTION', 'fetchAllMembers', 'a boolean');
-    }
-    if (typeof options.disableMentions !== 'string') {
-      throw new TypeError('CLIENT_INVALID_OPTION', 'disableMentions', 'a string');
     }
     if (!Array.isArray(options.partials)) {
       throw new TypeError('CLIENT_INVALID_OPTION', 'partials', 'an Array');

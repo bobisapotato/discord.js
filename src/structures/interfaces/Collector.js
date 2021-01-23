@@ -1,6 +1,7 @@
 'use strict';
 
 const EventEmitter = require('events');
+const { TypeError } = require('../../errors');
 const Collection = require('../../util/Collection');
 const Util = require('../../util/Util');
 
@@ -9,7 +10,7 @@ const Util = require('../../util/Util');
  * @typedef {Function} CollectorFilter
  * @param {...*} args Any arguments received by the listener
  * @param {Collection} collection The items collected by this collector
- * @returns {boolean}
+ * @returns {boolean|Promise<boolean>}
  */
 
 /**
@@ -74,6 +75,10 @@ class Collector extends EventEmitter {
      */
     this._idletimeout = null;
 
+    if (typeof filter !== 'function') {
+      throw new TypeError('INVALID_TYPE', 'filter', 'function');
+    }
+
     this.handleCollect = this.handleCollect.bind(this);
     this.handleDispose = this.handleDispose.bind(this);
 
@@ -86,10 +91,10 @@ class Collector extends EventEmitter {
    * @param {...*} args The arguments emitted by the listener
    * @emits Collector#collect
    */
-  handleCollect(...args) {
+  async handleCollect(...args) {
     const collect = this.collect(...args);
 
-    if (collect && this.filter(...args, this.collected)) {
+    if (collect && (await this.filter(...args, this.collected))) {
       this.collected.set(collect, args[0]);
 
       /**

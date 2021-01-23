@@ -23,9 +23,9 @@ client.on('message', message => {
   // If the message is "what is my avatar"
   if (message.content === 'what is my avatar') {
     // Send the user's avatar URL
-    message.reply(message.author.displayAvatarURL());
+    message.channel.send(message.author.displayAvatarURL());
   }
 });
 
-// Log our bot in using the token from https://discordapp.com/developers/applications/me
+// Log our bot in using the token from https://discord.com/developers/applications
 client.login('your token here');
