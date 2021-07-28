@@ -9,15 +9,16 @@ jobs:
         uses: actions/checkout@v2
 
       - name: Install Node v14
-        uses: actions/setup-node@v1
+        uses: actions/setup-node@v2
         with:
           node-version: 14
 
       - name: Install dependencies
-        run: npm ci
+        # Remove --no-optional after Node 16 upgrade
+        run: npm ci --no-optional
 
       - name: Run ESLint
-        uses: icrawl/action-eslint@v1
+        run: npm run lint
 
   typings:
     name: TSLint
@@ -27,12 +28,13 @@ jobs:
         uses: actions/checkout@v2
 
       - name: Install Node v14
-        uses: actions/setup-node@v1
+        uses: actions/setup-node@v2
         with:
           node-version: 14
 
       - name: Install dependencies
-        run: npm ci
+        # Remove --no-optional after Node 16 upgrade
+        run: npm ci --no-optional
 
       - name: Run TSLint
         run: npm run lint:typings
@@ -45,12 +47,13 @@ jobs:
         uses: actions/checkout@v2
 
       - name: Install Node v14
-        uses: actions/setup-node@v1
+        uses: actions/setup-node@v2
         with:
           node-version: 14
 
       - name: Install dependencies
-        run: npm ci
+        # Remove --no-optional after Node 16 upgrade
+        run: npm ci --no-optional
 
       - name: Register Problem Matcher
         run: echo "##[add-matcher].github/tsc.json"
@@ -66,12 +69,13 @@ jobs:
         uses: actions/checkout@v2
 
       - name: Install Node v14
-        uses: actions/setup-node@v1
+        uses: actions/setup-node@v2
         with:
           node-version: 14
 
       - name: Install dependencies
-        run: npm ci
+        # Remove --no-optional after Node 16 upgrade
+        run: npm ci --no-optional
 
       - name: Test documentation
         run: npm run docs:test

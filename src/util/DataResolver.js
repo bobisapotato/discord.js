@@ -5,16 +5,13 @@ const path = require('path');
 const stream = require('stream');
 const fetch = require('node-fetch');
 const { Error: DiscordError, TypeError } = require('../errors');
+const Invite = require('../structures/Invite');
 
 /**
  * The DataResolver identifies different objects and tries to resolve a specific piece of information from them.
  * @private
  */
-class DataResolver {
-  constructor() {
-    throw new Error(`The ${this.constructor.name} class may not be instantiated.`);
-  }
-
+class DataResolver extends null {
   /**
    * Data that can be resolved to give an invite code. This can be:
    * * An invite code
@@ -36,8 +33,7 @@ class DataResolver {
    * @returns {string}
    */
   static resolveCode(data, regex) {
-    const match = regex.exec(data);
-    return match ? match[1] || data : data;
+    return data.matchAll(regex).next().value?.[1] ?? data;
   }
 
   /**
@@ -46,7 +42,7 @@ class DataResolver {
    * @returns {string}
    */
   static resolveInviteCode(data) {
-    return this.resolveCode(data, /discord(?:(?:app)?\.com\/invite|\.gg(?:\/invite)?)\/([\w-]{2,255})/i);
+    return this.resolveCode(data, Invite.INVITES_PATTERN);
   }
 
   /**
@@ -55,7 +51,8 @@ class DataResolver {
    * @returns {string}
    */
   static resolveGuildTemplateCode(data) {
-    return this.resolveCode(data, /discord(?:app)?\.(?:com\/template|new)\/([\w-]{2,255})/i);
+    const GuildTemplate = require('../structures/GuildTemplate');
+    return this.resolveCode(data, GuildTemplate.GUILD_TEMPLATES_PATTERN);
   }
 
   /**

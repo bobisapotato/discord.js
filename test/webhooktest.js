@@ -5,13 +5,10 @@ const path = require('path');
 const util = require('util');
 const fetch = require('node-fetch');
 const { owner, token, webhookChannel, webhookToken } = require('./auth.js');
-const Discord = require('../src');
+const { Client, Intents, MessageAttachment, MessageEmbed, WebhookClient } = require('../src');
 
-const client = new Discord.Client({
-  intents: Discord.Intents.NON_PRIVILEGED,
-});
+const client = new Client({ intents: [Intents.FLAGS.GUILDS, Intents.FLAGS.GUILD_MESSAGES] });
 
-const fill = c => Array(4).fill(c.repeat(1000));
 const buffer = l => fetch(l).then(res => res.buffer());
 const read = util.promisify(fs.readFile);
 const readStream = fs.createReadStream;
@@ -21,20 +18,14 @@ const linkA = 'https://lolisafe.moe/iiDMtAXA.png';
 const linkB = 'https://lolisafe.moe/9hSpedPh.png';
 const fileA = path.join(__dirname, 'blobReach.png');
 
-const embed = () => new Discord.MessageEmbed();
-const attach = (attachment, name) => new Discord.MessageAttachment(attachment, name);
+const embed = () => new MessageEmbed();
+const attach = (attachment, name) => new MessageAttachment(attachment, name);
 
 const tests = [
   (m, hook) => hook.send('x'),
-  (m, hook) => hook.send(['x', 'y']),
-
   (m, hook) => hook.send('x', { code: true }),
   (m, hook) => hook.send('1', { code: 'js' }),
   (m, hook) => hook.send('x', { code: '' }),
-
-  (m, hook) => hook.send(fill('x'), { split: true }),
-  (m, hook) => hook.send(fill('1'), { code: 'js', split: true }),
-  (m, hook) => hook.send(fill('xyz '), { split: { char: ' ' } }),
 
   (m, hook) => hook.send({ embeds: [{ description: 'a' }] }),
   (m, hook) => hook.send({ files: [{ attachment: linkA }] }),
@@ -63,8 +54,8 @@ const tests = [
   (m, hook) => hook.send({ embeds: [{ description: 'a' }] }),
   (m, hook) => hook.send(embed().setDescription('a')),
 
-  (m, hook) => hook.send(['x', 'y'], [embed().setDescription('a'), attach(linkB)]),
-  (m, hook) => hook.send(['x', 'y'], [attach(linkA), attach(linkB)]),
+  (m, hook) => hook.send('x', [embed().setDescription('a'), attach(linkB)]),
+  (m, hook) => hook.send('x', [attach(linkA), attach(linkB)]),
 
   (m, hook) => hook.send([embed().setDescription('a'), attach(linkB)]),
   (m, hook) =>
@@ -95,33 +86,18 @@ const tests = [
   (m, hook) => hook.send({ files: [fileA] }),
   (m, hook) => hook.send(attach(fileA)),
   async (m, hook) => hook.send({ files: [await read(fileA)] }),
-  async (m, hook) =>
-    hook.send(fill('x'), {
-      code: 'js',
-      split: true,
-      embeds: [embed().setImage('attachment://zero.png')],
-      files: [attach(await buffer(linkA), 'zero.png')],
-    }),
 
   (m, hook) => hook.send('x', attach(readStream(fileA))),
   (m, hook) => hook.send({ files: [readStream(fileA)] }),
   (m, hook) => hook.send({ files: [{ attachment: readStream(fileA) }] }),
-  async (m, hook) =>
-    hook.send(fill('xyz '), {
-      code: 'js',
-      split: { char: ' ', prepend: 'hello! ', append: '!!!' },
-      embeds: [embed().setImage('attachment://zero.png')],
-      files: [linkB, attach(await buffer(linkA), 'zero.png'), readStream(fileA)],
-    }),
-
   (m, hook) => hook.send('Done!'),
 ];
 
-client.on('message', async message => {
+client.on('messageCreate', async message => {
   if (message.author.id !== owner) return;
   const match = message.content.match(/^do (.+)$/);
   const hooks = [
-    { type: 'WebhookClient', hook: new Discord.WebhookClient(webhookChannel, webhookToken) },
+    { type: 'WebhookClient', hook: new WebhookClient(webhookChannel, webhookToken) },
     { type: 'TextChannel#fetchWebhooks', hook: await message.channel.fetchWebhooks().then(x => x.first()) },
     { type: 'Guild#fetchWebhooks', hook: await message.guild.fetchWebhooks().then(x => x.first()) },
   ];
