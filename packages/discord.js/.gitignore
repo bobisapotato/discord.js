@@ -1,0 +1,31 @@
+# Packages
+node_modules
+
+# Log files
+logs
+*.log
+npm-debug.log*
+
+# Runtime data
+pids
+*.pid
+*.seed
+
+# Env
+.env
+test/auth.json
+test/auth.js
+
+# Docs
+docs/**/*
+!docs/index.json
+!docs/logo.svg
+!docs/README.md
+
+# Miscellaneous
+.turbo
+.tmp
+
+# Generated files
+typings/index.d.mts
+typings/rawDataTypes.d.mts

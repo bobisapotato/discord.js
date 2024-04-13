@@ -1,4 +1,6 @@
 {
-  "*.{mjs,js}": "eslint --fix --ext mjs,js,ts",
-  "*.{ts,json,yml,yaml}": "prettier --write"
+	"$schema": "https://json.schemastore.org/lintstagedrc.schema.json",
+	"*": "prettier --ignore-unknown --write",
+	"{src/**,__tests__/**}.{mjs,js,cjs,ts,tsx}": "eslint --fix",
+	"src/**.ts": "vitest related --run --config ../../vitest.config.ts"
 }

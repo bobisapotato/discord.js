@@ -1,0 +1,6 @@
+{
+	"name": "builders",
+	"org": "discordjs",
+	"packagePath": "packages/builders",
+	"identifierBase": false
+}
